@@ -2,42 +2,34 @@
 """
 Caching request module
 """
+
+import redis
+import requests
 from functools import wraps
 from typing import Callable
-import requests
-import redis
 
+# Global Redis client
+client = redis.Redis()
 
 def track_get_page(fn: Callable) -> Callable:
-    """Decorator for get_page"""
+    """Decorator for get_page with caching and count tracking"""
 
     @wraps(fn)
     def wrapper(url: str) -> str:
-        """Wrapper that:
-        - check whether a url's data is cached
-        - tracks how many times get_page is called
-        """
-        client = redis.Redis()
+        """Wrapper function"""
         client.incr(f"count:{url}")
-        cached_page = client.get(f"{url}")
+        cached_page = client.get(f"cache:{url}")
         if cached_page:
             return cached_page.decode("utf-8")
+
         response = fn(url)
-        client.set(f"{url}", response, 10)
+        client.set(f"cache:{url}", response, ex=10)
         return response
 
     return wrapper
 
-
 @track_get_page
 def get_page(url: str) -> str:
-    """
-    Args:
-
-        url: url to get
-    Returns:
-
-            the HTML content of the URL
-    """
+    """Fetch page content from the URL"""
     response = requests.get(url)
     return response.text
